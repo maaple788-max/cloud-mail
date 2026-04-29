@@ -11,10 +11,14 @@
     ></div>
     <el-container class="main-container">
       <el-main>
-        <el-header>
-            <Header />
-        </el-header>
-        <Main />
+        <div class="topbar-shell">
+          <el-header>
+              <Header />
+          </el-header>
+        </div>
+        <div class="content-shell">
+          <Main />
+        </div>
       </el-main>
     </el-container>
   </el-container>
@@ -91,7 +95,10 @@ onBeforeUnmount(() => {
 
 .main-container {
   min-height: 100%;
-  background: var(--el-bg-color);
+  background:
+      radial-gradient(circle at 18% 0%, rgba(24,144,255,.14), transparent 28%),
+      radial-gradient(circle at 92% 12%, rgba(111,124,255,.10), transparent 24%),
+      var(--maaple-bg);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -100,10 +107,32 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
+.topbar-shell {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  padding: 14px 18px 8px;
+  backdrop-filter: blur(16px);
+}
+
+.content-shell {
+  padding: 0 18px 18px;
+}
+
 .el-header {
-  background: var(--el-bg-color);
-  border-bottom: solid 1px var(--el-border-color);
+  height: 58px;
+  background: var(--maaple-surface);
+  border: solid 1px var(--maaple-border);
+  border-radius: 18px;
+  box-shadow: var(--maaple-shadow-soft);
   padding: 0 0 0 0;
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 767px) {
+  .topbar-shell { padding: 10px 10px 6px; }
+  .content-shell { padding: 0 10px 10px; }
+  .el-header { height: 54px; border-radius: 16px; }
 }
 
 .overlay-show {
