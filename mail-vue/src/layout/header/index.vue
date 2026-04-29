@@ -376,12 +376,11 @@ function formatName(email) {
   margin-left: 5px;
 
   .writer {
-    width: 38px;
-    height: 38px;
-    border-radius: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
     color: #ffffff;
-    background: linear-gradient(135deg, #1677ff, #6f7cff);
-    box-shadow: 0 12px 24px rgba(22, 119, 255, .25);
+    background: linear-gradient(135deg, #1890ff, #3a80dd);
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
@@ -421,10 +420,9 @@ function formatName(email) {
 
   .icon-item {
     align-self: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
-    transition: all .18s ease;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -433,7 +431,6 @@ function formatName(email) {
 
   .icon-item:hover {
     background: var(--base-fill);
-    transform: translateY(-1px);
   }
 
   .notice {
@@ -455,16 +452,15 @@ function formatName(email) {
     cursor: pointer;
 
     .avatar-text {
-      background: linear-gradient(135deg, rgba(24,144,255,.12), rgba(111,124,255,.12));
+      background: var(--el-bg-color);
       color: var(--el-text-color-primary);
-      height: 34px;
-      width: 34px;
+      height: 30px;
+      width: 30px;
       display: flex;
       justify-content: center;
       align-items: center;
-      border-radius: 12px;
-      border: 1px solid var(--maaple-border);
-      font-weight: 800;
+      border-radius: 8px;
+      border: 1px solid var(--dark-border);
     }
 
     .setting-icon {
