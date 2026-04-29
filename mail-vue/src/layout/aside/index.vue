@@ -2,7 +2,7 @@
   <el-scrollbar class="scroll">
     <div>
       <div class="title" >
-        <div class="brand-icon"><Icon icon="mdi:email-fast-outline" width="24" height="24" /></div>
+        <Icon icon="mdi:email-outline" width="24" height="24" />
         <div>{{settingStore.settings.title}}</div>
       </div>
       <el-menu :collapse="false" text-color="#fff" active-text-color="#fff" style="margin-top: 10px">
@@ -94,8 +94,7 @@ const route = useRoute();
   justify-content: center;
   gap: 5px;
   color: #ffffff;
-  background: linear-gradient(135deg, rgba(24,144,255,.95), rgba(111,124,255,.95));
-  box-shadow: 0 14px 34px rgba(24, 144, 255, .28);
+  background: linear-gradient(135deg, #1890ff, #3a80dd);
   transition: all 0.3s ease;
   max-width: 240px;
   padding: 0 10px;
@@ -129,28 +128,16 @@ const route = useRoute();
 }
 
 .el-menu-item {
-  margin: 6px 12px !important;
-  border-radius: 13px;
-  height: 40px;
-  padding: 10px 12px !important;
-  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
-}
-
-.brand-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 12px;
-  background: rgba(255,255,255,.16);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin: 5px 10px !important;
+  border-radius: 6px;
+  height: 36px;
+  padding: 10px !important;
 }
 
 .choose-item {
   font-weight: bold;
-  background: linear-gradient(135deg, rgba(24,144,255,.22), rgba(111,124,255,.16)) !important;
-  box-shadow: inset 3px 0 0 rgba(96, 165, 250, .95);
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(4px);
 }
 
 @media (hover: hover) {
@@ -179,19 +166,6 @@ const route = useRoute();
 .el-menu {
   border-right: 0;
   width: 260px;
-  padding-bottom: 18px;
-}
-
-:deep(.el-scrollbar__wrap--hidden-default) {
-  background:
-      radial-gradient(circle at 20% 0%, rgba(24,144,255,.28), transparent 35%),
-      linear-gradient(180deg, #0a1627 0%, var(--aside-backgound) 55%, #070b14 100%) !important;
-}
-
-@media (hover: hover) {
-  .el-menu-item:hover {
-    transform: translateX(3px);
-  }
 }
 
 :deep(.el-divider__text) {
