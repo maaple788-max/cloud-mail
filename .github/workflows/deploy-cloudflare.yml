@@ -29,6 +29,7 @@ jobs:
       LINUXDO_CLIENT_SECRET: ${{ secrets.LINUXDO_CLIENT_SECRET || vars.LINUXDO_CLIENT_SECRET }}
       LINUXDO_CALLBACK_URL: ${{ secrets.LINUXDO_CALLBACK_URL || vars.LINUXDO_CALLBACK_URL }}
       LINUXDO_SWITCH: ${{ secrets.LINUXDO_SWITCH || vars.LINUXDO_SWITCH }}
+      UPDATE_CUSTOM_DOMAIN_ROUTE: ${{ secrets.UPDATE_CUSTOM_DOMAIN_ROUTE || vars.UPDATE_CUSTOM_DOMAIN_ROUTE || 'false' }}
 
     outputs:
       worker_url: ${{ steps.deploy.outputs.worker_url }}
@@ -107,7 +108,7 @@ jobs:
             sed -i '/^linuxdo_client_id = /,/^linuxdo_switch = /d' "$CONFIG_FILE"
           fi
           
-          if [ -z "$CUSTOM_DOMAIN" ]; then
+          if [ -z "$CUSTOM_DOMAIN" ] || [ "$UPDATE_CUSTOM_DOMAIN_ROUTE" != "true" ]; then
             sed -i '/\[\[routes\]\]/,/^$/d' "$CONFIG_FILE"
           fi
 
