@@ -44,9 +44,9 @@ jobs:
           const roleName = process.env.ROLE_NAME || 'online';
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('bad email');
           const e = esc(email), name = esc(prefix), salt = esc(process.env.SALT), hash = esc(process.env.HASH), rn = esc(roleName);
-          console.log(`CREATE TEMP TABLE _target_role AS SELECT COALESCE((SELECT role_id FROM role WHERE lower(\"key\") = lower('${rn}') OR lower(name) = lower('${rn}') LIMIT 1), (SELECT role_id FROM role WHERE is_default = 1 LIMIT 1), 1) AS role_id;`);
-          console.log(`INSERT INTO user (email, type, password, salt, status, reg_key_id, is_del) SELECT '${e}', role_id, '${hash}', '${salt}', 0, 0, 0 FROM _target_role WHERE NOT EXISTS (SELECT 1 FROM user WHERE email COLLATE NOCASE = '${e}');`);
-          console.log(`UPDATE user SET type = (SELECT role_id FROM _target_role), password = '${hash}', salt = '${salt}', status = 0, is_del = 0 WHERE email COLLATE NOCASE = '${e}';`);
+          const roleExpr = `COALESCE((SELECT role_id FROM role WHERE lower(\"key\") = lower('${rn}') OR lower(name) = lower('${rn}') LIMIT 1), (SELECT role_id FROM role WHERE is_default = 1 LIMIT 1), 1)`;
+          console.log(`INSERT INTO user (email, type, password, salt, status, reg_key_id, is_del) SELECT '${e}', ${roleExpr}, '${hash}', '${salt}', 0, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM user WHERE email COLLATE NOCASE = '${e}');`);
+          console.log(`UPDATE user SET type = ${roleExpr}, password = '${hash}', salt = '${salt}', status = 0, is_del = 0 WHERE email COLLATE NOCASE = '${e}';`);
           console.log(`INSERT INTO account (email, name, user_id, status, all_receive, sort, is_del) SELECT '${e}', '${name}', user_id, 0, 0, 0, 0 FROM user WHERE email COLLATE NOCASE = '${e}' AND NOT EXISTS (SELECT 1 FROM account WHERE email COLLATE NOCASE = '${e}');`);
           console.log(`UPDATE account SET is_del = 0, status = 0, name = '${name}' WHERE email COLLATE NOCASE = '${e}';`);
           console.log(`SELECT u.user_id, u.email, u.type, r.name AS role_name, r.\"key\" AS role_key, a.account_id, a.name FROM user u LEFT JOIN role r ON r.role_id = u.type LEFT JOIN account a ON a.email = u.email WHERE u.email COLLATE NOCASE = '${e}';`);
