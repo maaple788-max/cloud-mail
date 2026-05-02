@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'check or route'
+        description: 'check only'
         required: true
         default: 'check'
 
@@ -22,20 +22,27 @@ jobs:
         run: |
           set -euo pipefail
           api(){ curl -fsS -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' "$@"; }
-          echo "account=$CF_ACCOUNT_ID worker=$NAME host=$CUSTOM_DOMAIN"
-          echo '== worker settings/bindings =='
-          api "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$NAME/settings" > /tmp/settings.json
-          python3 - <<'PY'
-          import json
-          d=json.load(open('/tmp/settings.json'))
-          print(json.dumps({'success':d.get('success'),'errors':d.get('errors'),'bindings':d.get('result',{}).get('bindings')},ensure_ascii=False,indent=2))
-          PY
-          echo '== custom domains =='
           api "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/domains" > /tmp/domains.json
+          api "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$NAME/settings" > /tmp/name-settings.json
           python3 - <<'PY'
-          import json,os
-          d=json.load(open('/tmp/domains.json')); host=os.environ.get('CUSTOM_DOMAIN')
-          res=d.get('result') or []
-          keep=[x for x in res if host in json.dumps(x)]
-          print(json.dumps({'success':d.get('success'),'errors':d.get('errors'),'matched':keep[:20]},ensure_ascii=False,indent=2))
+          import json, os, subprocess, urllib.request
+          token=os.environ['CF_TOKEN']; acct=os.environ['CF_ACCOUNT_ID']; name=os.environ['NAME']; host=os.environ['CUSTOM_DOMAIN']
+          domains=json.load(open('/tmp/domains.json'))
+          ns=json.load(open('/tmp/name-settings.json'))
+          matches=[x for x in (domains.get('result') or []) if x.get('hostname')==host]
+          svc=matches[0].get('service') if matches else None
+          def summarize_settings(d):
+              binds=d.get('result',{}).get('bindings') or []
+              return [{'name':b.get('name'), 'type':b.get('type'), 'has_id':bool(b.get('id') or b.get('database_id'))} for b in binds]
+          out={'domain_found':bool(matches),'domain_service_equals_name':svc==name,'name_bindings':summarize_settings(ns)}
+          if svc:
+              req=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{acct}/workers/scripts/{svc}/settings', headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+              with urllib.request.urlopen(req) as r:
+                  ss=json.load(r)
+              out['domain_service_bindings']=summarize_settings(ss)
+              out['domain_service_has_db']=any(b.get('name')=='db' for b in out['domain_service_bindings'])
+              out['domain_service_has_kv']=any(b.get('name')=='kv' for b in out['domain_service_bindings'])
+          out['name_has_db']=any(b.get('name')=='db' for b in out['name_bindings'])
+          out['name_has_kv']=any(b.get('name')=='kv' for b in out['name_bindings'])
+          print(json.dumps(out, ensure_ascii=False, indent=2))
           PY
