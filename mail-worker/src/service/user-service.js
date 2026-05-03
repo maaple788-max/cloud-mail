@@ -12,6 +12,7 @@ import dayjs from 'dayjs';
 import permService from './perm-service';
 import roleService from './role-service';
 import emailUtils from '../utils/email-utils';
+import verifyUtils from '../utils/verify-utils';
 import saltHashUtils from '../utils/crypto-utils';
 import constant from '../const/constant';
 import { t } from '../i18n/i18n'
