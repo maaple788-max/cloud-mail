@@ -304,14 +304,65 @@ const userService = {
 
 	async add(c, params) {
 
-		const { email, type, password } = params;
+		await this.createUserWithAccount(c, params);
+	},
 
-		if (!c.env.domain.includes(emailUtils.getDomain(email))) {
+	async resolveRoleId(c, { type, roleName = 'online' } = {}) {
+
+		if (type) {
+			const roleRow = await roleService.selectById(c, Number(type));
+			if (!roleRow) {
+				throw new BizError(t('roleNotExist'));
+			}
+			return roleRow.roleId;
+		}
+
+		if (roleName) {
+			const roleRow = await roleService.selectByName(c, roleName);
+			if (!roleRow) {
+				throw new BizError(t('roleNotExist'));
+			}
+			return roleRow.roleId;
+		}
+
+		const defRole = await roleService.selectDefaultRole(c);
+		if (!defRole) {
+			throw new BizError(t('roleNotExist'));
+		}
+		return defRole.roleId;
+	},
+
+	validateManagedEmail(c, email) {
+
+		const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+		if (!normalizedEmail || !verifyUtils.isEmail(normalizedEmail)) {
+			throw new BizError(t('notEmail'));
+		}
+
+		if (!c.env.domain.includes(emailUtils.getDomain(normalizedEmail))) {
 			throw new BizError(t('notEmailDomain'));
 		}
 
+		if (emailUtils.getName(normalizedEmail).length > 64) {
+			throw new BizError('Email prefix is too long');
+		}
+
+		return normalizedEmail;
+	},
+
+	async createUserWithAccount(c, params) {
+
+		const email = this.validateManagedEmail(c, params.email);
+		const password = params.password || saltHashUtils.genBalancedPassword(16, 4);
+		const type = await this.resolveRoleId(c, { type: params.type, roleName: params.roleName });
+
 		if (password.length < 6) {
 			throw new BizError(t('pwdMinLength'));
+		}
+
+		if (password.length > 30) {
+			throw new BizError(t('pwdLengthLimit'));
 		}
 
 		const accountRow = await accountService.selectByEmailIncludeDel(c, email);
@@ -324,20 +375,44 @@ const userService = {
 			throw new BizError(t('isRegAccount'));
 		}
 
-		const role = roleService.selectById(c, type);
-
-		if (!role) {
-			throw new BizError(t('roleNotExist'));
-		}
-
 		const { salt, hash } = await saltHashUtils.hashPassword(password);
-
 		const userId = await userService.insert(c, { email, password: hash, salt, type });
 
 		await userService.updateUserInfo(c, userId, true);
+		await accountService.insert(c, { userId, email, type, name: emailUtils.getName(email) });
 
-		await accountService.insert(c, { userId: userId, email, type, name: emailUtils.getName(email) });
+		return { userId, email, password, type, userType: params.roleName || 'online', status: 'created' };
 	},
+
+	async adminCreate(c, params) {
+
+		const { email, password, user_type: userType, roleName } = params;
+		return await this.createUserWithAccount(c, {
+			email,
+			password,
+			roleName: roleName || userType || 'online'
+		});
+	},
+
+	async adminGetByEmail(c, email) {
+
+		const normalizedEmail = this.validateManagedEmail(c, email);
+		const [userRow, accountRow] = await Promise.all([
+			this.selectByEmailIncludeDel(c, normalizedEmail),
+			accountService.selectByEmailIncludeDel(c, normalizedEmail)
+		]);
+
+		return {
+			exists: Boolean(userRow || accountRow),
+			userId: userRow?.userId || null,
+			email: normalizedEmail,
+			type: userRow?.type || null,
+			status: userRow?.status ?? null,
+			isDel: userRow?.isDel ?? accountRow?.isDel ?? null,
+			accountId: accountRow?.accountId || null
+		};
+	},
+
 
 	async resetDaySendCount(c) {
 		const roleList = await roleService.selectByIdsAndSendType(c, 'email:send', roleConst.sendType.DAY);
