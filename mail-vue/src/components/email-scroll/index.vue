@@ -234,7 +234,6 @@ import {fromNow} from "@/utils/day.js";
 import {useI18n} from "vue-i18n";
 import {EmailUnreadEnum} from "@/enums/email-enum.js";
 import { UseVirtualList } from '@vueuse/components'
-import { useScroll } from '@vueuse/core'
 
 const props = defineProps({
   getEmailList: Function,
@@ -369,13 +368,20 @@ window.onresize = () => {
   isMobile.value = innerWidth < 1367
 }
 
-function onScroll(e) {
-  scrollTop = e.target.scrollTop;
+function checkNeedLoadMore(target) {
+  if (!target) return;
+  const distanceToBottom = target.scrollHeight - target.clientHeight - target.scrollTop;
+  if (distanceToBottom <= 800 && !loading.value && !reqLock && !noLoading.value) {
+    loadData();
+  }
 }
 
-const { arrivedState } = useScroll(scrollbarRef, {
-  offset: { bottom: 1200 }
-})
+function onScroll(e) {
+  const target = e?.target;
+  if (!target) return;
+  scrollTop = target.scrollTop;
+  checkNeedLoadMore(target);
+}
 
 
 const list = computed(() => {
@@ -428,12 +434,14 @@ watch(noLoading, (isNoLoading) => {
 })
 
 
-// 监听是否到达底部
-watch(() => arrivedState.bottom, (isBottom) => {
-  if (isBottom && !loading.value) {
-    loadData();
+// 兼容虚拟列表高度估算误差：每次列表变化后，补一次接近底部检测
+watch(list, async () => {
+  await nextTick();
+  const virtualEl = document.querySelector('.virtual');
+  if (virtualEl) {
+    checkNeedLoadMore(virtualEl);
   }
-});
+}, { deep: false });
 
 watch(
     () => emailList.map(item => item.checked),
@@ -835,6 +843,13 @@ function getEmailList(refresh = false) {
     followLoading.value = data.list.length >= queryParam.size;
 
     total.value = data.total;
+
+    nextTick(() => {
+      const virtualEl = document.querySelector('.virtual');
+      if (virtualEl) {
+        checkNeedLoadMore(virtualEl);
+      }
+    })
   }).finally(() => {
     loading.value = false
     reqLock = false
