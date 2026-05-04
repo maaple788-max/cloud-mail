@@ -24,6 +24,37 @@ import telegramService from './telegram-service';
 
 const emailService = {
 
+	async adminDeactivationNotice(c, params) {
+		const normalizedEmail = userService.validateManagedEmail(c, params.email);
+		const minutes = Math.min(Math.max(Number(params.minutes) || 1440, 1), 43200);
+		const since = dayjs().subtract(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss');
+
+		const list = await orm(c)
+			.select()
+			.from(email)
+			.where(and(
+				eq(email.type, emailConst.type.RECEIVE),
+				ne(email.status, emailConst.status.SAVING),
+				eq(email.isDel, isDel.NORMAL),
+				gte(email.createTime, since),
+				sql`${email.toEmail} COLLATE NOCASE = ${normalizedEmail}`,
+				sql`${email.subject} COLLATE NOCASE LIKE ${'%OpenAI - Access Deactivated%'}`
+			))
+			.orderBy(desc(email.emailId))
+			.limit(1)
+			.all();
+
+		const row = list[0];
+		return {
+			matched: Boolean(row),
+			email: normalizedEmail,
+			minutes,
+			subject: row?.subject || '',
+			from: row?.sendEmail || '',
+			createTime: row?.createTime || '',
+			emailId: row?.emailId || 0
+		};
+	},
 
 	async adminLatestCode(c, params) {
 

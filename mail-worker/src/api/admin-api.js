@@ -47,3 +47,12 @@ app.get('/admin/mailboxes/:email/latest-code', async (c) => {
 	});
 	return c.json(result.ok(data));
 });
+
+app.get('/admin/mailboxes/:email/deactivation-notice', async (c) => {
+	await requireAdminKey(c);
+	const data = await emailService.adminDeactivationNotice(c, {
+		email: c.req.param('email'),
+		minutes: c.req.query('minutes')
+	});
+	return c.json(result.ok(data));
+});
