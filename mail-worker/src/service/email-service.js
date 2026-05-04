@@ -29,30 +29,33 @@ const emailService = {
 
 		const normalizedEmail = userService.validateManagedEmail(c, params.email);
 		const accountRow = await accountService.selectByEmailIncludeDel(c, normalizedEmail);
-		const minutes = Math.min(Math.max(Number(params.minutes) || 10, 1), 60);
-		const size = Math.min(Math.max(Number(params.size) || 20, 1), 50);
+		const minutes = Math.min(Math.max(Number(params.minutes) || 10, 1), 120);
+		const size = Math.min(Math.max(Number(params.size) || 20, 1), 100);
 		const since = dayjs().subtract(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss');
 
-		if (!accountRow || accountRow.isDel === isDel.DELETE) {
-			return { matched: false, email: normalizedEmail, reason: 'mailbox_not_found' };
-		}
+		const conditions = [
+			eq(email.type, emailConst.type.RECEIVE),
+			ne(email.status, emailConst.status.SAVING),
+			eq(email.isDel, isDel.NORMAL),
+			gte(email.createTime, since),
+			or(
+				sql`${email.toEmail} COLLATE NOCASE = ${normalizedEmail}`,
+				sql`${email.recipient} COLLATE NOCASE LIKE ${'%' + normalizedEmail + '%'}`
+			)
+		];
 
+		// Important: Cloud Mail can receive mail for an address before a user/account is created.
+		// Query by recipient address first; do not require accountRow/accountId here.
 		const list = await orm(c)
 			.select()
 			.from(email)
-			.where(and(
-				eq(email.accountId, accountRow.accountId),
-				eq(email.type, emailConst.type.RECEIVE),
-				ne(email.status, emailConst.status.SAVING),
-				eq(email.isDel, isDel.NORMAL),
-				gte(email.createTime, since)
-			))
+			.where(and(...conditions))
 			.orderBy(desc(email.emailId))
 			.limit(size)
 			.all();
 
-		const codePattern = /(?<!\d)(\d{6})(?!\d)/;
-		const openaiPattern = /(openai|chatgpt|verify|verification|验证码|驗證碼|code|login|登录|登入)/i;
+		const codePattern = /(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d)(?!\d)/;
+		const openaiPattern = /(openai|chatgpt|verify|verification|验证码|驗證碼|code|login|登录|登入|auth)/i;
 
 		for (const row of list) {
 			const haystack = [row.subject, row.sendEmail, row.name, row.text, row.content].filter(Boolean).join('\n');
@@ -63,7 +66,7 @@ const emailService = {
 			const looksRelevant = openaiPattern.test(haystack);
 			return {
 				matched: true,
-				code: codeMatch[1],
+				code: codeMatch[1].replace(/\D/g, ''),
 				email: normalizedEmail,
 				subject: row.subject || '',
 				from: row.sendEmail || '',
@@ -74,7 +77,7 @@ const emailService = {
 			};
 		}
 
-		return { matched: false, email: normalizedEmail, scanned: list.length };
+		return { matched: false, email: normalizedEmail, scanned: list.length, hasAccount: Boolean(accountRow && accountRow.isDel !== isDel.DELETE), latest: list.slice(0, 3).map(row => ({ subject: row.subject || '', from: row.sendEmail || '', createTime: row.createTime, emailId: row.emailId })) };
 	},
 
 	async list(c, params, userId) {
