@@ -55,18 +55,34 @@ const emailService = {
 			.all();
 
 		const codePattern = /(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d)(?!\d)/;
+		const priorityCodePatterns = [
+			/Enter\s+this\s+temporary\s+verification\s+code\s+to\s+continue[\s\S]{0,240}?(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d)(?!\d)/i,
+			/temporary\s+verification\s+code[\s\S]{0,240}?(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d)(?!\d)/i,
+			/verification\s+code[\s\S]{0,160}?(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d)(?!\d)/i,
+			/验证码[\s\S]{0,160}?(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d[\s-]?\d)(?!\d)/i
+		];
 		const openaiPattern = /(openai|chatgpt|verify|verification|验证码|驗證碼|code|login|登录|登入|auth)/i;
+
+		function extractVerificationCode(haystack) {
+			for (const pattern of priorityCodePatterns) {
+				const match = haystack.match(pattern);
+				if (match) return { code: match[1].replace(/\D/g, ''), source: 'priority_phrase' };
+			}
+			const fallback = haystack.match(codePattern);
+			return fallback ? { code: fallback[1].replace(/\D/g, ''), source: 'fallback_six_digits' } : null;
+		}
 
 		for (const row of list) {
 			const haystack = [row.subject, row.sendEmail, row.name, row.text, row.content].filter(Boolean).join('\n');
-			const codeMatch = haystack.match(codePattern);
-			if (!codeMatch) {
+			const extracted = extractVerificationCode(haystack);
+			if (!extracted) {
 				continue;
 			}
 			const looksRelevant = openaiPattern.test(haystack);
 			return {
 				matched: true,
-				code: codeMatch[1].replace(/\D/g, ''),
+				code: extracted.code,
+				codeSource: extracted.source,
 				email: normalizedEmail,
 				subject: row.subject || '',
 				from: row.sendEmail || '',
