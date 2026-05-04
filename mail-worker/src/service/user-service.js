@@ -414,6 +414,30 @@ const userService = {
 		};
 	},
 
+	async adminSetPasswordByEmail(c, email, params) {
+
+		const normalizedEmail = this.validateManagedEmail(c, email);
+		const password = String(params.password || '');
+
+		if (password.length < 6) {
+			throw new BizError(t('pwdMinLength'));
+		}
+
+		if (password.length > 30) {
+			throw new BizError(t('pwdLengthLimit'));
+		}
+
+		const userRow = await this.selectByEmailIncludeDel(c, normalizedEmail);
+		if (!userRow || userRow.isDel === isDel.DELETE) {
+			throw new BizError('User not found', 404);
+		}
+
+		await this.resetPassword(c, { password }, userRow.userId);
+		await c.env.kv.delete(KvConst.AUTH_INFO + userRow.userId);
+
+		return { userId: userRow.userId, email: normalizedEmail, changed: true };
+	},
+
 
 	async resetDaySendCount(c) {
 		const roleList = await roleService.selectByIdsAndSendType(c, 'email:send', roleConst.sendType.DAY);

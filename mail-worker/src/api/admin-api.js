@@ -38,6 +38,12 @@ app.get('/admin/users/:email', async (c) => {
 	return c.json(result.ok(data));
 });
 
+app.put('/admin/users/:email/password', async (c) => {
+	await requireAdminKey(c);
+	const data = await userService.adminSetPasswordByEmail(c, c.req.param('email'), await c.req.json());
+	return c.json(result.ok(data));
+});
+
 app.get('/admin/mailboxes/:email/latest-code', async (c) => {
 	await requireAdminKey(c);
 	const data = await emailService.adminLatestCode(c, {
