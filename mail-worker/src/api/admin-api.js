@@ -2,6 +2,7 @@ import app from '../hono/hono';
 import result from '../model/result';
 import BizError from '../error/biz-error';
 import userService from '../service/user-service';
+import emailService from '../service/email-service';
 
 function adminKey(c) {
 	return c.env.admin_api_key || c.env.ADMIN_API_KEY || c.env.jwt_secret || c.env.JWT_SECRET;
@@ -34,5 +35,15 @@ app.post('/admin/users', async (c) => {
 app.get('/admin/users/:email', async (c) => {
 	await requireAdminKey(c);
 	const data = await userService.adminGetByEmail(c, c.req.param('email'));
+	return c.json(result.ok(data));
+});
+
+app.get('/admin/mailboxes/:email/latest-code', async (c) => {
+	await requireAdminKey(c);
+	const data = await emailService.adminLatestCode(c, {
+		email: c.req.param('email'),
+		minutes: c.req.query('minutes'),
+		size: c.req.query('size')
+	});
 	return c.json(result.ok(data));
 });
