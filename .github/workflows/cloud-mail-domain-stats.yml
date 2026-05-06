@@ -52,6 +52,8 @@ jobs:
             exit 1
           fi
 
+          DB_NAME="cloud-mail"
           SQL="SELECT LOWER(SUBSTR(email, INSTR(email, '@') + 1)) AS domain, COUNT(*) AS user_count FROM user WHERE is_del = 0 GROUP BY domain ORDER BY user_count DESC;"
           echo "📊 Cloud Mail active users by domain"
-          pnpm wrangler d1 execute "$D1_DATABASE_ID" --remote --command "$SQL"
+          echo "Using D1 database name: ${DB_NAME}"
+          pnpm wrangler d1 execute "$DB_NAME" --remote --command "$SQL"
