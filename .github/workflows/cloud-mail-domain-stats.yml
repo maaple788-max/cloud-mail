@@ -44,6 +44,10 @@ jobs:
             exit 1
           fi
           if [ -z "${D1_DATABASE_ID:-}" ]; then
+            D1_DATABASE_ID=$(awk -F '"' '/database_id/ {print $2; exit}' wrangler.toml)
+            echo "ℹ️ D1_DATABASE_ID was not set in secrets/vars; using wrangler.toml fallback."
+          fi
+          if [ -z "${D1_DATABASE_ID:-}" ]; then
             echo "❌ D1_DATABASE_ID is missing"
             exit 1
           fi
