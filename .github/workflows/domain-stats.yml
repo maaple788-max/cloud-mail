@@ -1,0 +1,46 @@
+name: 📊 Cloud Mail Domain User Stats
+
+on:
+  workflow_dispatch:
+
+jobs:
+  domain-stats:
+    name: Query user counts by email domain
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./mail-worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.1.0
+        with:
+          version: latest
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ./mail-worker/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Query D1 user counts by domain
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "CLOUDFLARE_API_TOKEN is missing"
+            exit 1
+          fi
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "CLOUDFLARE_ACCOUNT_ID is missing"
+            exit 1
+          fi
+          DB_NAME="cloud-mail"
+          SQL="SELECT LOWER(SUBSTR(email, INSTR(email, '@') + 1)) AS domain, COUNT(*) AS total_count, SUM(CASE WHEN COALESCE(is_del, 0) = 0 THEN 1 ELSE 0 END) AS active_count, SUM(CASE WHEN COALESCE(is_del, 0) <> 0 THEN 1 ELSE 0 END) AS deleted_count FROM user GROUP BY domain ORDER BY active_count DESC, total_count DESC;"
+          echo "Cloud Mail user/mailbox counts by domain"
+          echo "Using D1 database name: ${DB_NAME}"
+          pnpm wrangler d1 execute "$DB_NAME" --remote --command "$SQL"
