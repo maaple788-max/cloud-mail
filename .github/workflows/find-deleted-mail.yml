@@ -5,7 +5,7 @@ on:
 
 jobs:
   find-deleted-mail:
-    name: Query deleted mail by subject
+    name: Query mail by subject
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,10 +28,10 @@ jobs:
           cache-dependency-path: ./mail-worker/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Query deleted mail
+      - name: Query mail
         run: |
           set -euo pipefail
           DB_NAME="cloud-mail"
-          SQL="SELECT e.email_id, e.user_id, e.account_id, u.email AS user_email, a.email AS account_email, e.send_email, e.to_email, e.subject, e.create_time, e.is_del, e.unread, substr(COALESCE(e.text, ''), 1, 180) AS text_preview FROM email e LEFT JOIN user u ON e.user_id = u.user_id LEFT JOIN account a ON e.account_id = a.account_id WHERE COALESCE(e.is_del, 0) <> 0 AND lower(COALESCE(e.subject, '')) LIKE '%your new plan%' ORDER BY e.create_time DESC LIMIT 50;"
-          echo "Deleted Cloud Mail subject search: your new plan"
+          SQL="SELECT e.email_id, e.user_id, e.account_id, u.email AS user_email, a.email AS account_email, e.send_email, e.to_email, e.subject, e.create_time, e.is_del, e.unread, substr(COALESCE(e.text, ''), 1, 220) AS text_preview FROM email e LEFT JOIN user u ON e.user_id = u.user_id LEFT JOIN account a ON e.account_id = a.account_id WHERE lower(COALESCE(e.subject, '')) LIKE '%new plan%' OR lower(COALESCE(e.subject, '')) LIKE '%your%plan%' ORDER BY e.is_del DESC, e.create_time DESC LIMIT 80;"
+          echo "Cloud Mail subject search: new plan / your plan"
           pnpm wrangler d1 execute "$DB_NAME" --remote --command "$SQL"
