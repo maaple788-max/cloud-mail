@@ -26,6 +26,27 @@ async function requireAdminKey(c) {
 	}
 }
 
+function managedDomains(c) {
+	return Array.isArray(c.env.domain) ? c.env.domain.map(domain => String(domain || '').trim().toLowerCase()).filter(Boolean) : [];
+}
+
+function randomString(chars, length) {
+	const array = new Uint32Array(length);
+	crypto.getRandomValues(array);
+	let value = '';
+	for (const item of array) {
+		value += chars[item % chars.length];
+	}
+	return value;
+}
+
+function randomMailboxPrefix(length = 10) {
+	const safeLength = Math.min(Math.max(Number(length) || 10, 6), 32);
+	const first = randomString('abcdefghijklmnopqrstuvwxyz', 1);
+	const rest = randomString('abcdefghijklmnopqrstuvwxyz0123456789', safeLength - 1);
+	return `${first}${rest}`;
+}
+
 app.post('/admin/users', async (c) => {
 	await requireAdminKey(c);
 	const data = await userService.adminCreate(c, await c.req.json());
@@ -61,4 +82,47 @@ app.get('/admin/mailboxes/:email/deactivation-notice', async (c) => {
 		minutes: c.req.query('minutes')
 	});
 	return c.json(result.ok(data));
+});
+
+app.post('/admin/mailboxes/random', async (c) => {
+	await requireAdminKey(c);
+	const body = await c.req.json().catch(() => ({}));
+	const domain = String(body.domain || c.req.query('domain') || '').trim().toLowerCase();
+	if (!domain) {
+		throw new BizError('domain is required', 400);
+	}
+	if (!managedDomains(c).includes(domain)) {
+		throw new BizError('domain is not allowed', 400);
+	}
+
+	const maxAttempts = Math.min(Math.max(Number(body.maxAttempts) || 8, 1), 20);
+	let lastError = null;
+	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+		const prefix = randomMailboxPrefix(body.prefixLength);
+		const email = `${prefix}@${domain}`;
+		try {
+			const data = await userService.adminCreate(c, {
+				email,
+				password: body.password,
+				roleName: body.roleName || body.user_type || 'online'
+			});
+			return c.json(result.ok({
+				email: data.email,
+				password: data.password,
+				prefix,
+				domain,
+				userId: data.userId,
+				type: data.type,
+				userType: data.userType,
+				status: data.status,
+				attempt
+			}));
+		} catch (err) {
+			lastError = err;
+			if (!String(err.message || '').includes('already registered') && !String(err.message || '').includes('已注册')) {
+				throw err;
+			}
+		}
+	}
+	throw new BizError(`Failed to create a unique mailbox: ${lastError?.message || 'unknown error'}`, 409);
 });
