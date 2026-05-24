@@ -414,6 +414,22 @@ const userService = {
 		};
 	},
 
+	async adminDeleteByEmail(c, email) {
+
+		const normalizedEmail = this.validateManagedEmail(c, email);
+		const userRow = await this.selectByEmailIncludeDel(c, normalizedEmail);
+		if (!userRow || userRow.isDel === isDel.DELETE) {
+			return { email: normalizedEmail, deleted: false, reason: 'not_found' };
+		}
+
+		await accountService.physicsDeleteByUserIds(c, [userRow.userId]);
+		await oauthService.deleteByUserIds(c, [userRow.userId]);
+		await orm(c).delete(user).where(eq(user.userId, userRow.userId)).run();
+		await c.env.kv.delete(KvConst.AUTH_INFO + userRow.userId);
+
+		return { userId: userRow.userId, email: normalizedEmail, deleted: true };
+	},
+
 	async adminSetPasswordByEmail(c, email, params) {
 
 		const normalizedEmail = this.validateManagedEmail(c, email);

@@ -65,6 +65,12 @@ app.put('/admin/users/:email/password', async (c) => {
 	return c.json(result.ok(data));
 });
 
+app.delete('/admin/users/:email', async (c) => {
+	await requireAdminKey(c);
+	const data = await userService.adminDeleteByEmail(c, c.req.param('email'));
+	return c.json(result.ok(data));
+});
+
 app.get('/admin/mailboxes/:email/latest-code', async (c) => {
 	await requireAdminKey(c);
 	const data = await emailService.adminLatestCode(c, {
