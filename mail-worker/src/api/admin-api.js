@@ -104,7 +104,7 @@ app.post('/admin/mailboxes/random', async (c) => {
 			const data = await userService.adminCreate(c, {
 				email,
 				password: body.password,
-				roleName: body.roleName || body.user_type || 'online'
+				roleName: body.roleName || body.userType || body.user_type || 'online'
 			});
 			return c.json(result.ok({
 				email: data.email,
