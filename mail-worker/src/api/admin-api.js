@@ -126,3 +126,43 @@ app.post('/admin/mailboxes/random', async (c) => {
 	}
 	throw new BizError(`Failed to create a unique mailbox: ${lastError?.message || 'unknown error'}`, 409);
 });
+
+app.post('/admin/proton-mailboxes/random', async (c) => {
+	await requireAdminKey(c);
+	const body = await c.req.json().catch(() => ({}));
+	const domain = 'proton.maap1e.online';
+	if (!managedDomains(c).includes(domain)) {
+		throw new BizError('proton.maap1e.online is not configured as an allowed domain', 500);
+	}
+
+	const maxAttempts = Math.min(Math.max(Number(body.maxAttempts) || 8, 1), 20);
+	let lastError = null;
+	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+		const prefix = randomMailboxPrefix(body.prefixLength);
+		const email = `${prefix}@${domain}`;
+		try {
+			const data = await userService.adminCreate(c, {
+				email,
+				password: body.password,
+				roleName: 'proton'
+			});
+			return c.json(result.ok({
+				email: data.email,
+				password: data.password,
+				prefix,
+				domain,
+				userId: data.userId,
+				type: data.type,
+				userType: 'proton',
+				status: data.status,
+				attempt
+			}));
+		} catch (err) {
+			lastError = err;
+			if (!String(err.message || '').includes('already registered') && !String(err.message || '').includes('已注册')) {
+				throw err;
+			}
+		}
+	}
+	throw new BizError(`Failed to create a unique proton mailbox: ${lastError?.message || 'unknown error'}`, 409);
+});
