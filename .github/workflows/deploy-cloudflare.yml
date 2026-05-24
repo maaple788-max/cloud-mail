@@ -16,7 +16,7 @@ jobs:
     env:
       NAME: ${{ secrets.NAME || vars.NAME || 'cloud-mail' }}
       CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN || vars.CUSTOM_DOMAIN }}
-      DOMAIN: '["maaple.xyz","gpt.maap1e.online","proton.maap1e.online","plus.maap1e.com","plus.maap1e.org","plus.maap1e.online","gpt.maap1e.com","gpt.maap1e.org"]'
+      DOMAIN: '["maaple.xyz","gpt.maap1e.online","plus.maap1e.com","plus.maap1e.org","plus.maap1e.online","gpt.maap1e.com","gpt.maap1e.org"]'
       ADMIN: ${{ secrets.ADMIN || vars.ADMIN }}
       JWT_SECRET: ${{ secrets.JWT_SECRET || vars.JWT_SECRET }}
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY || vars.ADMIN_API_KEY }}
