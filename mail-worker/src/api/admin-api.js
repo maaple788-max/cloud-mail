@@ -86,7 +86,8 @@ app.get('/admin/mailboxes/:email/deactivation-notice', async (c) => {
 	await requireAdminKey(c);
 	const data = await emailService.adminDeactivationNotice(c, {
 		email: c.req.param('email'),
-		minutes: c.req.query('minutes')
+		minutes: c.req.query('minutes'),
+		relayMailbox: c.req.query('relayMailbox') || c.req.query('mailbox') || c.req.query('actualMailbox')
 	});
 	return c.json(result.ok(data));
 });
