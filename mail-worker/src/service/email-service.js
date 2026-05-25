@@ -26,7 +26,14 @@ import verifyUtils from '../utils/verify-utils';
 const emailService = {
 
 	async adminDeactivationNotice(c, params) {
-		const normalizedEmail = userService.validateManagedEmail(c, params.email);
+		const relayMailbox = params.relayMailbox ? userService.validateManagedEmail(c, params.relayMailbox) : '';
+		const normalizedEmail = relayMailbox
+			? String(params.email || '').trim().toLowerCase()
+			: userService.validateManagedEmail(c, params.email);
+		if (relayMailbox && !verifyUtils.isEmail(normalizedEmail)) {
+			throw new BizError(t('notEmail'));
+		}
+		const queryEmail = relayMailbox || normalizedEmail;
 		const minutes = Math.min(Math.max(Number(params.minutes) || 1440, 1), 43200);
 		const since = dayjs().subtract(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss');
 
@@ -38,18 +45,40 @@ const emailService = {
 				ne(email.status, emailConst.status.SAVING),
 				eq(email.isDel, isDel.NORMAL),
 				gte(email.createTime, since),
-				sql`${email.toEmail} COLLATE NOCASE = ${queryEmail}`,
+				or(
+					sql`${email.toEmail} COLLATE NOCASE = ${queryEmail}`,
+					sql`${email.recipient} COLLATE NOCASE LIKE ${'%' + queryEmail + '%'}`
+				),
 				sql`${email.subject} COLLATE NOCASE LIKE ${'%OpenAI - Access Deactivated%'}`
 			))
 			.orderBy(desc(email.emailId))
-			.limit(1)
+			.limit(20)
 			.all();
 
-		const row = list[0];
+		function haystackContainsTarget(haystack, target) {
+			const lower = String(haystack || '').toLowerCase();
+			const wanted = String(target || '').toLowerCase();
+			if (!wanted) return true;
+			if (lower.includes(wanted)) return true;
+			const local = wanted.split('@')[0];
+			if (local && local.length >= 8) {
+				const escaped = local.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '[.\\s]*');
+				return new RegExp(escaped, 'i').test(lower);
+			}
+			return false;
+		}
+
+		const row = list.find(item => {
+			if (!relayMailbox) return true;
+			const haystack = [item.subject, item.sendEmail, item.name, item.toEmail, item.recipient, item.text, item.content].filter(Boolean).join('\n');
+			return haystackContainsTarget(haystack, normalizedEmail);
+		});
 		return {
 			matched: Boolean(row),
 			email: normalizedEmail,
+			relayMailbox: relayMailbox || '',
 			minutes,
+			scanned: list.length,
 			subject: row?.subject || '',
 			from: row?.sendEmail || '',
 			createTime: row?.createTime || '',
