@@ -76,7 +76,8 @@ app.get('/admin/mailboxes/:email/latest-code', async (c) => {
 	const data = await emailService.adminLatestCode(c, {
 		email: c.req.param('email'),
 		minutes: c.req.query('minutes'),
-		size: c.req.query('size')
+		size: c.req.query('size'),
+		relayMailbox: c.req.query('relayMailbox') || c.req.query('mailbox') || c.req.query('actualMailbox')
 	});
 	return c.json(result.ok(data));
 });
