@@ -21,6 +21,7 @@ import domainUtils from '../utils/domain-uitls';
 import account from "../entity/account";
 import { att } from '../entity/att';
 import telegramService from './telegram-service';
+import verifyUtils from '../utils/verify-utils';
 
 const emailService = {
 
@@ -37,7 +38,7 @@ const emailService = {
 				ne(email.status, emailConst.status.SAVING),
 				eq(email.isDel, isDel.NORMAL),
 				gte(email.createTime, since),
-				sql`${email.toEmail} COLLATE NOCASE = ${normalizedEmail}`,
+				sql`${email.toEmail} COLLATE NOCASE = ${queryEmail}`,
 				sql`${email.subject} COLLATE NOCASE LIKE ${'%OpenAI - Access Deactivated%'}`
 			))
 			.orderBy(desc(email.emailId))
@@ -58,8 +59,15 @@ const emailService = {
 
 	async adminLatestCode(c, params) {
 
-		const normalizedEmail = userService.validateManagedEmail(c, params.email);
-		const accountRow = await accountService.selectByEmailIncludeDel(c, normalizedEmail);
+		const relayMailbox = params.relayMailbox ? userService.validateManagedEmail(c, params.relayMailbox) : '';
+		const normalizedEmail = relayMailbox
+			? String(params.email || '').trim().toLowerCase()
+			: userService.validateManagedEmail(c, params.email);
+		if (relayMailbox && !verifyUtils.isEmail(normalizedEmail)) {
+			throw new BizError(t('notEmail'));
+		}
+		const queryEmail = relayMailbox || normalizedEmail;
+		const accountRow = await accountService.selectByEmailIncludeDel(c, queryEmail);
 		const minutes = Math.min(Math.max(Number(params.minutes) || 10, 1), 120);
 		const size = Math.min(Math.max(Number(params.size) || 20, 1), 100);
 		const since = dayjs().subtract(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss');
@@ -70,8 +78,8 @@ const emailService = {
 			eq(email.isDel, isDel.NORMAL),
 			gte(email.createTime, since),
 			or(
-				sql`${email.toEmail} COLLATE NOCASE = ${normalizedEmail}`,
-				sql`${email.recipient} COLLATE NOCASE LIKE ${'%' + normalizedEmail + '%'}`
+				sql`${email.toEmail} COLLATE NOCASE = ${queryEmail}`,
+				sql`${email.recipient} COLLATE NOCASE LIKE ${'%' + queryEmail + '%'}`
 			)
 		];
 
@@ -125,8 +133,24 @@ const emailService = {
 			return fallback ? { code: fallback[1].replace(/\D/g, ''), source: 'fallback_six_digits' } : null;
 		}
 
+		function haystackContainsTarget(haystack, target) {
+			const lower = String(haystack || '').toLowerCase();
+			const wanted = String(target || '').toLowerCase();
+			if (!wanted) return true;
+			if (lower.includes(wanted)) return true;
+			const local = wanted.split('@')[0];
+			if (local && local.length >= 8) {
+				const escaped = local.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '[.\\s]*');
+				return new RegExp(escaped, 'i').test(lower);
+			}
+			return false;
+		}
+
 		for (const row of list) {
-			const haystack = [row.subject, row.sendEmail, row.name, row.text, row.content].filter(Boolean).join('\n');
+			const haystack = [row.subject, row.sendEmail, row.name, row.toEmail, row.recipient, row.text, row.content].filter(Boolean).join('\n');
+			if (relayMailbox && !haystackContainsTarget(haystack, normalizedEmail)) {
+				continue;
+			}
 			const extracted = extractVerificationCode(haystack);
 			if (!extracted) {
 				continue;
@@ -142,11 +166,12 @@ const emailService = {
 				name: row.name || '',
 				createTime: row.createTime,
 				emailId: row.emailId,
-				looksRelevant
+				looksRelevant,
+				relayMailbox: relayMailbox || ''
 			};
 		}
 
-		return { matched: false, email: normalizedEmail, scanned: list.length, hasAccount: Boolean(accountRow && accountRow.isDel !== isDel.DELETE), latest: list.slice(0, 3).map(row => ({ subject: row.subject || '', from: row.sendEmail || '', createTime: row.createTime, emailId: row.emailId })) };
+		return { matched: false, email: normalizedEmail, relayMailbox: relayMailbox || '', scanned: list.length, hasAccount: Boolean(accountRow && accountRow.isDel !== isDel.DELETE), latest: list.slice(0, 3).map(row => ({ subject: row.subject || '', from: row.sendEmail || '', createTime: row.createTime, emailId: row.emailId })) };
 	},
 
 	async list(c, params, userId) {
