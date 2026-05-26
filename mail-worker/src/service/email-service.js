@@ -25,6 +25,93 @@ import verifyUtils from '../utils/verify-utils';
 
 const emailService = {
 
+	async adminIcloudRelayMessages(c, params) {
+		const relayMailbox = userService.validateManagedEmail(c, params.relayMailbox || 'icloud@maaple.xyz');
+		const targetEmail = String(params.email || '').trim().toLowerCase();
+		if (!verifyUtils.isEmail(targetEmail)) {
+			throw new BizError(t('notEmail'));
+		}
+		const minutes = Math.min(Math.max(Number(params.minutes) || 43200, 1), 43200);
+		const size = Math.min(Math.max(Number(params.size) || 50, 1), 50);
+		const since = dayjs().subtract(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss');
+
+		function haystackContainsTarget(haystack, target) {
+			const lower = String(haystack || '').toLowerCase();
+			const wanted = String(target || '').toLowerCase();
+			if (!wanted) return true;
+			if (lower.includes(wanted)) return true;
+			const local = wanted.split('@')[0];
+			if (local && local.length >= 8) {
+				const escaped = local.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '[.\\s]*');
+				return new RegExp(escaped, 'i').test(lower);
+			}
+			return false;
+		}
+
+		function normalizeMailText(value) {
+			return String(value || '')
+				.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+				.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+				.replace(/<br\s*\/?\s*>/gi, ' ')
+				.replace(/<\/p>|<\/div>|<\/td>|<\/tr>|<\/h[1-6]>/gi, ' ')
+				.replace(/<[^>]+>/g, ' ')
+				.replace(/&nbsp;|&#160;/gi, ' ')
+				.replace(/&amp;/gi, '&')
+				.replace(/&lt;/gi, '<')
+				.replace(/&gt;/gi, '>')
+				.replace(/&quot;/gi, '"')
+				.replace(/&#39;|&apos;/gi, "'")
+				.replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+				.replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number(num)))
+				.replace(/\s+/g, ' ')
+				.trim();
+		}
+
+		function extractCode(text, content) {
+			const haystack = normalizeMailText([text || '', content || ''].join('\n'));
+			const match = haystack.match(/(?<!\d)(\d[\s-]?\d[\s-]?\d[\s-]?\d(?:[\s-]?\d){0,4})(?!\d)/);
+			return match ? match[1].replace(/\D/g, '') : '';
+		}
+
+		const list = await orm(c)
+			.select()
+			.from(email)
+			.where(and(
+				eq(email.type, emailConst.type.RECEIVE),
+				ne(email.status, emailConst.status.SAVING),
+				eq(email.isDel, isDel.NORMAL),
+				gte(email.createTime, since),
+				or(
+					sql`${email.toEmail} COLLATE NOCASE = ${relayMailbox}`,
+					sql`${email.recipient} COLLATE NOCASE LIKE ${'%' + relayMailbox + '%'}`
+				)
+			))
+			.orderBy(desc(email.emailId))
+			.limit(200)
+			.all();
+
+		const messages = [];
+		for (const row of list) {
+			const haystack = [row.subject, row.sendEmail, row.name, row.toEmail, row.recipient, row.text, row.content, row.message].filter(Boolean).join('\n');
+			if (!haystackContainsTarget(haystack, targetEmail)) continue;
+			messages.push({
+				emailId: row.emailId,
+				from: row.sendEmail || '',
+				name: row.name || '',
+				subject: row.subject || '',
+				toEmail: row.toEmail || '',
+				recipient: row.recipient || '',
+				text: row.text || '',
+				content: row.content || '',
+				code: extractCode(row.text, row.content),
+				createTime: row.createTime || ''
+			});
+			if (messages.length >= size) break;
+		}
+
+		return { relayMailbox, targetEmail, scanned: list.length, list: messages };
+	},
+
 	async adminDeactivationNotice(c, params) {
 		const relayMailbox = params.relayMailbox ? userService.validateManagedEmail(c, params.relayMailbox) : '';
 		const normalizedEmail = relayMailbox

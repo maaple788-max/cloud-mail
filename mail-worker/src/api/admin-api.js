@@ -47,6 +47,18 @@ function randomMailboxPrefix(length = 10) {
 	return `${first}${rest}`;
 }
 
+
+app.get('/icloudRelay/messages', async (c) => {
+	await requireAdminKey(c);
+	const data = await emailService.adminIcloudRelayMessages(c, {
+		email: c.req.query('email'),
+		relayMailbox: c.req.query('relayMailbox') || 'icloud@maaple.xyz',
+		minutes: c.req.query('minutes'),
+		size: c.req.query('size')
+	});
+	return c.json(result.ok(data));
+});
+
 app.post('/admin/users', async (c) => {
 	await requireAdminKey(c);
 	const data = await userService.adminCreate(c, await c.req.json());
