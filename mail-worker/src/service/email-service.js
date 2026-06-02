@@ -265,10 +265,11 @@ const emailService = {
 
 		for (const row of list) {
 			const haystack = [row.subject, row.sendEmail, row.name, row.toEmail, row.recipient, row.text, row.content].filter(Boolean).join('\n');
+			const codeHaystack = [row.subject, row.text, row.content].filter(Boolean).join('\n');
 			if (relayMailbox && !haystackContainsTarget(haystack, normalizedEmail)) {
 				continue;
 			}
-			const extracted = extractVerificationCode(haystack);
+			const extracted = extractVerificationCode(codeHaystack);
 			if (!extracted) {
 				continue;
 			}
