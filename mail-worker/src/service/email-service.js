@@ -7,6 +7,7 @@ import settingService from './setting-service';
 import accountService from './account-service';
 import BizError from '../error/biz-error';
 import emailUtils from '../utils/email-utils';
+import fileUtils from '../utils/file-utils';
 import { Resend } from 'resend';
 import attService from './att-service';
 import { parseHTML } from 'linkedom';
@@ -535,7 +536,7 @@ const emailService = {
 				subject: subject,
 				text: text,
 				html: html,
-				attachments: [...imageDataList, ...attachments]
+				attachments: await this.toArrayBufferAttachments([...imageDataList, ...attachments])
 			};
 
 			if (sendType === 'reply') {
@@ -631,6 +632,45 @@ const emailService = {
 		}
 
 		return [ emailResult ];
+	},
+
+	async toArrayBufferAttachments(attachments = []) {
+		const result = [];
+
+		for (const attachment of attachments || []) {
+			const content = await this.toAttachmentArrayBuffer(attachment);
+			if (!content) {
+				continue;
+			}
+			result.push({ ...attachment, content });
+		}
+
+		return result;
+	},
+
+	async toAttachmentArrayBuffer(attachment) {
+		let content = attachment?.content;
+
+		if (!content) {
+			return null;
+		}
+
+		if (content instanceof ArrayBuffer) {
+			return content;
+		}
+
+		if (content instanceof Uint8Array) {
+			return content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength);
+		}
+
+		if (typeof content === 'string') {
+			if (content.startsWith('data:')) {
+				content = content.split(',')[1] || content;
+			}
+			return fileUtils.base64ToUint8Array(content.replace(/\s+/g, '')).buffer;
+		}
+
+		return content;
 	},
 
 	//处理站内邮件发送

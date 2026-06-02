@@ -11,6 +11,15 @@ import roleService from '../service/role-service';
 import userService from '../service/user-service';
 import telegramService from '../service/telegram-service';
 
+function isLikelyCodeMail(parsedEmail) {
+	const from = `${parsedEmail.from?.address || ''} ${parsedEmail.from?.name || ''}`.toLowerCase();
+	const subject = String(parsedEmail.subject || '').toLowerCase();
+	const text = String(parsedEmail.text || '');
+	const html = String(parsedEmail.html || '');
+	const haystack = `${from}\n${subject}\n${text}\n${html.slice(0, 4096)}`;
+	return /(openai|chatgpt)/i.test(haystack) && /(验证码|驗證碼|verification\s+code|login\s+code|登录代码|登入代碼|temporary\s+code|临时.*代码|code)/i.test(haystack);
+}
+
 export async function email(message, env, ctx) {
 
 	try {
@@ -79,6 +88,7 @@ export async function email(message, env, ctx) {
 		}
 
 		const toName = email.to.find(item => item.address === message.to)?.name || '';
+		const isCodeMail = isLikelyCodeMail(email);
 
 		const params = {
 			toEmail: message.to,
@@ -103,13 +113,15 @@ export async function email(message, env, ctx) {
 		const attachments = [];
 		const cidAttachments = [];
 
-		for (let item of email.attachments) {
-			let attachment = { ...item };
-			attachment.key = constant.ATTACHMENT_PREFIX + await fileUtils.getBuffHash(attachment.content) + fileUtils.getExtFileName(item.filename);
-			attachment.size = item.content.length ?? item.content.byteLength;
-			attachments.push(attachment);
-			if (attachment.contentId) {
-				cidAttachments.push(attachment);
+		if (!isCodeMail) {
+			for (let item of email.attachments) {
+				let attachment = { ...item };
+				attachment.key = constant.ATTACHMENT_PREFIX + await fileUtils.getBuffHash(attachment.content) + fileUtils.getExtFileName(item.filename);
+				attachment.size = item.content.length ?? item.content.byteLength;
+				attachments.push(attachment);
+				if (attachment.contentId) {
+					cidAttachments.push(attachment);
+				}
 			}
 		}
 
